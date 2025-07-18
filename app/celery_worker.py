@@ -3,9 +3,10 @@ import asyncio
 import traceback
 from celery import Celery
 from pydantic import HttpUrl, ValidationError
-from linebot.v3.messaging import Configuration, ApiClient, MessagingApi, ReplyMessageRequest, TextMessage
-from linebot.v3.exceptions import ApiException
-from sqlalchemy.ext.asyncio import AsyncSession
+from linebot.v3.messaging import (
+    Configuration, ApiClient, MessagingApi, 
+    ReplyMessageRequest, TextMessage, ApiException
+)
 from dotenv import load_dotenv
 
 from .database import AsyncSessionLocal
@@ -36,23 +37,20 @@ async def create_short_url_async(message_text: str) -> dict:
 @celery_app.task(bind=True, autoretry_for=(Exception,), retry_kwargs={'max_retries': 3, 'countdown': 60})
 def process_message_task(self, reply_token: str, message_text: str):
     """Process incoming message and generate short URL"""
-    print(f"[CELERY WORKER] ===============================================")
-    print(f"[CELERY WORKER] 收到新任務")
+    print(f"[CELERY WORKER] 收到新任務: {message_text}")
     print(f"[CELERY WORKER] Reply Token: {reply_token}")
-    print(f"[CELERY WORKER] Message Text: {message_text}")
-    print(f"[CELERY WORKER] ===============================================")
     
     reply_message = None
     
     try:
         # Validate URL format using Pydantic
         try:
-            print(f"[CELERY WORKER] 開始驗證 URL 格式...")
+            print("[CELERY WORKER] 開始驗證 URL 格式...")
             validated_url = HttpUrl(message_text)
             print(f"[CELERY WORKER] URL 驗證成功: {validated_url}")
             
             # Create short URL using internal logic
-            print(f"[CELERY WORKER] 開始生成短網址...")
+            print("[CELERY WORKER] 開始生成短網址...")
             result = asyncio.run(create_short_url_async(str(validated_url)))
             print(f"[CELERY WORKER] 短網址生成結果: {result}")
             
@@ -62,11 +60,10 @@ def process_message_task(self, reply_token: str, message_text: str):
                 print(f"[CELERY WORKER] 成功生成短網址: {short_url}")
             else:
                 reply_message = TextMessage(text="短網址產生失敗，請稍後再試")
-                print(f"[CELERY WORKER] 短網址生成失敗")
+                print("[CELERY WORKER] 短網址生成失敗")
                 
         except ValidationError as e:
             print(f"[CELERY WORKER] URL 格式驗證失敗: {e}")
-            # Not a valid URL, send error message
             reply_message = TextMessage(text="請提供有效的網址格式 (http:// 或 https://)")
             
         except ValueError as e:
@@ -79,7 +76,7 @@ def process_message_task(self, reply_token: str, message_text: str):
             reply_message = TextMessage(text="短網址服務暫時無法使用，請稍後再試")
         
         # Send reply via LINE
-        print(f"[CELERY WORKER] 準備發送回覆訊息...")
+        print("[CELERY WORKER] 準備發送回覆訊息...")
         print(f"[CELERY WORKER] 回覆內容: {reply_message.text}")
         
         reply_request = ReplyMessageRequest(
@@ -88,7 +85,7 @@ def process_message_task(self, reply_token: str, message_text: str):
         )
         
         try:
-            print(f"[CELERY WORKER] 正在呼叫 LINE API...")
+            print("[CELERY WORKER] 正在呼叫 LINE API...")
             response = line_bot_api.reply_message(reply_request)
             print(f"[CELERY WORKER] LINE API 回覆成功: {response}")
         except ApiException as e:
@@ -102,7 +99,7 @@ def process_message_task(self, reply_token: str, message_text: str):
             print(f"[CELERY WORKER] 錯誤追蹤: {traceback.format_exc()}")
             raise
             
-        print(f"[CELERY WORKER] 任務完成")
+        print("[CELERY WORKER] 任務完成")
         
     except Exception as e:
         print(f"[CELERY WORKER] 任務處理失敗: {str(e)}")
