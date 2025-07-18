@@ -84,6 +84,106 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
     
     return JSONResponse(content={"status": "ok"})
 
+@app.get("/")
+async def home():
+    """Home page with service status"""
+    from datetime import datetime
+    import asyncio
+    
+    # Check database connection
+    try:
+        async with AsyncSessionLocal() as db:
+            await db.execute("SELECT 1")
+        db_status = "✅ 已連接"
+    except Exception as e:
+        db_status = f"❌ 連接失敗: {str(e)}"
+    
+    # Check Redis connection
+    try:
+        from redis import Redis
+        redis_client = Redis.from_url(os.getenv("BROKER_URL", "redis://localhost:6379/0"))
+        redis_client.ping()
+        redis_status = "✅ 已連接"
+    except Exception as e:
+        redis_status = f"❌ 連接失敗: {str(e)}"
+    
+    # Basic service info
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>LINE 短網址服務 - 服務狀態</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+            body {{ font-family: Arial, sans-serif; margin: 40px; background-color: #f5f5f5; }}
+            .container {{ max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+            h1 {{ color: #333; text-align: center; }}
+            .status {{ padding: 15px; margin: 10px 0; border-radius: 5px; }}
+            .healthy {{ background-color: #d4edda; border: 1px solid #c3e6cb; }}
+            .unhealthy {{ background-color: #f8d7da; border: 1px solid #f5c6cb; }}
+            .info {{ background-color: #d1ecf1; border: 1px solid #bee5eb; }}
+            .api-endpoints {{ margin-top: 20px; }}
+            .endpoint {{ background: #f8f9fa; padding: 10px; margin: 5px 0; border-radius: 5px; }}
+            .time {{ text-align: center; color: #666; margin-top: 20px; }}
+            .footer {{ text-align: center; margin-top: 30px; color: #666; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>🚀 LINE 短網址服務</h1>
+            
+            <div class="status info">
+                <strong>📊 服務狀態概覽</strong><br>
+                伺服器正在運行中
+            </div>
+            
+            <div class="status {'healthy' if '✅' in db_status else 'unhealthy'}">
+                <strong>🗄️ 資料庫狀態:</strong> {db_status}
+            </div>
+            
+            <div class="status {'healthy' if '✅' in redis_status else 'unhealthy'}">
+                <strong>🔄 Redis 狀態:</strong> {redis_status}
+            </div>
+            
+            <div class="api-endpoints">
+                <h3>📡 API 端點</h3>
+                <div class="endpoint">
+                    <strong>POST /api/shorten</strong> - 創建短網址<br>
+                    <small>範例: curl -X POST -H "Content-Type: application/json" -d '{{"url":"https://github.com"}}' /api/shorten</small>
+                </div>
+                <div class="endpoint">
+                    <strong>GET /{{short_code}}</strong> - 短網址重定向<br>
+                    <small>範例: /{"{short_code}"} → 自動重定向到原始網址</small>
+                </div>
+                <div class="endpoint">
+                    <strong>POST /webhook</strong> - LINE Bot Webhook 接收器<br>
+                    <small>用於接收 LINE 平台的訊息事件</small>
+                </div>
+                <div class="endpoint">
+                    <strong>GET /health</strong> - 健康檢查<br>
+                    <small>返回簡單的健康狀態 JSON</small>
+                </div>
+            </div>
+            
+            <div class="time">
+                📅 檢查時間: {current_time}
+            </div>
+            
+            <div class="footer">
+                <p>💡 此服務提供 LINE Bot 短網址功能</p>
+                <p>🔗 發送網址給 LINE Bot，即可獲得短網址</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(content=html_content)
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
