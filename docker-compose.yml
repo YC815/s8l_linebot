@@ -1,0 +1,67 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: shortener
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - CHANNEL_SECRET=${CHANNEL_SECRET}
+      - CHANNEL_TOKEN=${CHANNEL_TOKEN}
+      - SHORTENER_API_URL=${SHORTENER_API_URL}
+      - BROKER_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql+asyncpg://user:password@postgres:5432/shortener
+    depends_on:
+      - redis
+      - postgres
+    volumes:
+      - .:/app
+    command: uv run --no-sync uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  worker:
+    build: .
+    environment:
+      - CHANNEL_SECRET=${CHANNEL_SECRET}
+      - CHANNEL_TOKEN=${CHANNEL_TOKEN}
+      - SHORTENER_API_URL=${SHORTENER_API_URL}
+      - BROKER_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql+asyncpg://user:password@postgres:5432/shortener
+    depends_on:
+      - redis
+      - postgres
+    volumes:
+      - .:/app
+    command: uv run --no-sync celery -A app.celery_worker:celery_app worker --loglevel=info
+
+  flower:
+    build: .
+    ports:
+      - "5555:5555"
+    environment:
+      - BROKER_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+    volumes:
+      - .:/app
+    command: uv run --no-sync celery -A app.celery_worker:celery_app flower --port=5555
+
+volumes:
+  redis_data:
+  postgres_data:
