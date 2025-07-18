@@ -80,6 +80,9 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
     
     # Verify signature
     try:
+        print(f"[WEBHOOK] Channel Secret length: {len(CHANNEL_SECRET) if CHANNEL_SECRET else 'None'}")
+        print(f"[WEBHOOK] Channel Secret preview: {CHANNEL_SECRET[:10]}..." if CHANNEL_SECRET else "No Channel Secret")
+        
         if not verify_signature(body, signature):
             print("[WEBHOOK] Error: Invalid signature")
             raise HTTPException(status_code=400, detail="Invalid signature")
