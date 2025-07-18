@@ -17,5 +17,5 @@ COPY app/ ./app/
 # Expose port
 EXPOSE 8000
 
-# Run the application
+# Run the application (web server only, no Celery worker needed)
 CMD ["sh", "-c", "uv run --no-sync uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

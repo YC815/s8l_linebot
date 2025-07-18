@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-from .celery_worker import process_message_task
+from .message_handler import process_message_sync
 from .database import get_db, init_db, AsyncSessionLocal
 from .url_shortener import create_short_url, get_original_url
 
@@ -108,13 +108,13 @@ async def webhook(request: Request):
             print(f"[LINE MESSAGE] User: {event.source.user_id}, Message: {event.message.text}")
             print(f"[LINE MESSAGE] Reply Token: {event.reply_token}")
             
-            # Send task to Celery worker
-            print(f"[WEBHOOK] 正在發送任務到 Celery worker...")
+            # Process message synchronously
+            print(f"[WEBHOOK] 正在處理訊息...")
             try:
-                task = process_message_task.delay(event.reply_token, event.message.text)
-                print(f"[WEBHOOK] Celery 任務已發送，Task ID: {task.id}")
+                await process_message_sync(event.reply_token, event.message.text)
+                print(f"[WEBHOOK] 訊息處理完成")
             except Exception as e:
-                print(f"[WEBHOOK] 發送 Celery 任務失敗: {e}")
+                print(f"[WEBHOOK] 處理訊息失敗: {e}")
                 import traceback
                 print(f"[WEBHOOK] 錯誤追蹤: {traceback.format_exc()}")
         else:
