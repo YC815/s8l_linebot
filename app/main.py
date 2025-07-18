@@ -106,8 +106,17 @@ async def webhook(request: Request):
     for event in events:
         if isinstance(event, MessageEvent) and isinstance(event.message, TextMessageContent):
             print(f"[LINE MESSAGE] User: {event.source.user_id}, Message: {event.message.text}")
+            print(f"[LINE MESSAGE] Reply Token: {event.reply_token}")
+            
             # Send task to Celery worker
-            process_message_task.delay(event.reply_token, event.message.text)
+            print(f"[WEBHOOK] 正在發送任務到 Celery worker...")
+            try:
+                task = process_message_task.delay(event.reply_token, event.message.text)
+                print(f"[WEBHOOK] Celery 任務已發送，Task ID: {task.id}")
+            except Exception as e:
+                print(f"[WEBHOOK] 發送 Celery 任務失敗: {e}")
+                import traceback
+                print(f"[WEBHOOK] 錯誤追蹤: {traceback.format_exc()}")
         else:
             print(f"[WEBHOOK] Ignoring event type: {type(event)}")
     
