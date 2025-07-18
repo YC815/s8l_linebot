@@ -56,7 +56,17 @@ async def process_message_sync(reply_token: str, message_text: str):
                 
         except ValidationError as e:
             print(f"[MESSAGE HANDLER] URL 格式驗證失敗: {e}")
-            reply_message = TextMessage(text="請提供有效的網址格式 (http:// 或 https://)")
+            
+            # Check for common greetings
+            greetings = ["你好", "hi", "hello", "嗨", "安安", "哈囉", "早安", "午安", "晚安"]
+            help_commands = ["help", "幫助", "說明", "指令"]
+            
+            if message_text.lower() in greetings:
+                reply_message = TextMessage(text="你好！歡迎使用短網址服務 📎\n\n直接傳送網址給我，我會幫您生成短網址！\n\n範例：\nhttps://www.google.com")
+            elif message_text.lower() in help_commands:
+                reply_message = TextMessage(text="📎 短網址服務使用說明\n\n直接傳送完整網址給我即可：\n• 支援 http:// 或 https:// 開頭\n• 例如：https://www.example.com\n\n我會立即為您生成短網址！")
+            else:
+                reply_message = TextMessage(text="請提供有效的網址格式 (http:// 或 https://)\n\n範例：https://www.google.com")
             
         except ValueError as e:
             print(f"[MESSAGE HANDLER] 值錯誤: {e}")
