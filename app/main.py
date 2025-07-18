@@ -75,6 +75,7 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
     # Process events in background
     for event in events:
         if isinstance(event, MessageEvent) and isinstance(event.message, TextMessageContent):
+            print(f"[LINE MESSAGE] User: {event.source.user_id}, Message: {event.message.text}")
             background_tasks.add_task(
                 process_message_task.delay,
                 event.reply_token,

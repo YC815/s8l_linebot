@@ -34,6 +34,7 @@ async def create_short_url_async(message_text: str) -> dict:
 @celery_app.task(bind=True, autoretry_for=(Exception,), retry_kwargs={'max_retries': 3, 'countdown': 60})
 def process_message_task(self, reply_token: str, message_text: str):
     """Process incoming message and generate short URL"""
+    print(f"[CELERY WORKER] Processing message: {message_text}")
     try:
         # Validate URL format using Pydantic
         try:
@@ -54,13 +55,16 @@ def process_message_task(self, reply_token: str, message_text: str):
             short_url = result.get("shortUrl")
             if short_url:
                 reply_message = TextMessage(text=f"短網址: {short_url}")
+                print(f"[CELERY WORKER] Generated short URL: {short_url}")
             else:
                 reply_message = TextMessage(text="短網址產生失敗，請稍後再試")
+                print(f"[CELERY WORKER] Failed to generate short URL for: {validated_url}")
         except ValueError as e:
             # Handle specific validation errors
             reply_message = TextMessage(text=str(e))
+            print(f"[CELERY WORKER] Validation error: {e}")
         except Exception as e:
-            print(f"Error creating short URL: {e}")
+            print(f"[CELERY WORKER] Error creating short URL: {e}")
             reply_message = TextMessage(text="短網址服務暫時無法使用，請稍後再試")
         
         # Send reply via LINE
