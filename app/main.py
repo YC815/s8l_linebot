@@ -4,7 +4,7 @@ import hmac
 import base64
 from typing import List
 
-from fastapi import FastAPI, Request, HTTPException, BackgroundTasks, Depends
+from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.responses import JSONResponse, RedirectResponse
 from linebot.v3 import WebhookHandler
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
@@ -59,7 +59,7 @@ def verify_signature(body: bytes, signature: str) -> bool:
     return hmac.compare_digest(signature, expected_signature)
 
 @app.post("/webhook")
-async def webhook(request: Request, background_tasks: BackgroundTasks):
+async def webhook(request: Request):
     """Handle LINE webhook events"""
     signature = request.headers.get("X-Line-Signature", "")
     body = await request.body()
@@ -106,11 +106,8 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
     for event in events:
         if isinstance(event, MessageEvent) and isinstance(event.message, TextMessageContent):
             print(f"[LINE MESSAGE] User: {event.source.user_id}, Message: {event.message.text}")
-            background_tasks.add_task(
-                process_message_task.delay,
-                event.reply_token,
-                event.message.text
-            )
+            # Send task to Celery worker
+            process_message_task.delay(event.reply_token, event.message.text)
         else:
             print(f"[WEBHOOK] Ignoring event type: {type(event)}")
     
