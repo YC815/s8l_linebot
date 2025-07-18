@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 
 from .celery_worker import process_message_task
-from .database import get_db, init_db
+from .database import get_db, init_db, AsyncSessionLocal
 from .url_shortener import create_short_url, get_original_url
 
 load_dotenv()
@@ -88,12 +88,12 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
 async def home():
     """Home page with service status"""
     from datetime import datetime
-    import asyncio
     
     # Check database connection
     try:
         async with AsyncSessionLocal() as db:
-            await db.execute("SELECT 1")
+            from sqlalchemy import text
+            await db.execute(text("SELECT 1"))
         db_status = "✅ 已連接"
     except Exception as e:
         db_status = f"❌ 連接失敗: {str(e)}"
