@@ -15,6 +15,9 @@ load_dotenv()
 # LINE Bot API client
 CHANNEL_TOKEN = os.getenv("CHANNEL_TOKEN")
 
+print(f"[DEBUG] CHANNEL_TOKEN length: {len(CHANNEL_TOKEN) if CHANNEL_TOKEN else 'None'}")
+print(f"[DEBUG] CHANNEL_TOKEN preview: {CHANNEL_TOKEN[:20]}..." if CHANNEL_TOKEN else "No CHANNEL_TOKEN")
+
 if not CHANNEL_TOKEN:
     raise ValueError("Missing required environment variables: CHANNEL_TOKEN")
 
