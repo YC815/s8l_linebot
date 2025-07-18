@@ -64,13 +64,40 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
     signature = request.headers.get("X-Line-Signature", "")
     body = await request.body()
     
-    if not verify_signature(body, signature):
-        raise HTTPException(status_code=400, detail="Invalid signature")
+    print(f"[WEBHOOK] Received request from {request.client.host if request.client else 'unknown'}")
+    print(f"[WEBHOOK] Signature: {signature[:20]}..." if signature else "[WEBHOOK] No signature")
+    print(f"[WEBHOOK] Body length: {len(body)}")
     
+    # Check if body is empty
+    if not body:
+        print("[WEBHOOK] Error: Empty request body")
+        raise HTTPException(status_code=400, detail="Empty request body")
+    
+    # Check if signature exists
+    if not signature:
+        print("[WEBHOOK] Error: Missing X-Line-Signature header")
+        raise HTTPException(status_code=400, detail="Missing X-Line-Signature header")
+    
+    # Verify signature
+    try:
+        if not verify_signature(body, signature):
+            print("[WEBHOOK] Error: Invalid signature")
+            raise HTTPException(status_code=400, detail="Invalid signature")
+        print("[WEBHOOK] Signature verification passed")
+    except Exception as e:
+        print(f"[WEBHOOK] Error verifying signature: {e}")
+        raise HTTPException(status_code=400, detail="Signature verification failed")
+    
+    # Parse events
     try:
         events = webhook_handler.parser.parse(body.decode('utf-8'), signature)
-    except InvalidSignatureError:
+        print(f"[WEBHOOK] Successfully parsed {len(events)} events")
+    except InvalidSignatureError as e:
+        print(f"[WEBHOOK] Invalid signature error: {e}")
         raise HTTPException(status_code=400, detail="Invalid signature")
+    except Exception as e:
+        print(f"[WEBHOOK] Error parsing events: {e}")
+        raise HTTPException(status_code=400, detail="Event parsing failed")
     
     # Process events in background
     for event in events:
@@ -81,6 +108,8 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
                 event.reply_token,
                 event.message.text
             )
+        else:
+            print(f"[WEBHOOK] Ignoring event type: {type(event)}")
     
     return JSONResponse(content={"status": "ok"})
 
