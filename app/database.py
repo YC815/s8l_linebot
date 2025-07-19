@@ -1,6 +1,6 @@
 """Prisma database client for the application."""
-from prisma import Prisma
 from typing import Optional
+from prisma import Prisma
 
 # Global Prisma client instance
 _client: Optional[Prisma] = None

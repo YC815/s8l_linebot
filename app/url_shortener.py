@@ -1,12 +1,13 @@
+"""URL shortener module with Prisma Client Python."""
 import random
 import re
 import asyncio
 from typing import Optional, Dict, Any
 from urllib.parse import urlparse
-from prisma import Prisma
-from prisma.models import User, Url, UserUrl
 import aiohttp
 from bs4 import BeautifulSoup
+from prisma import Prisma
+from prisma.models import User
 
 # URL-safe characters for short code generation
 URL_SAFE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
@@ -193,5 +194,5 @@ async def get_original_url(db: Prisma, short_code: str) -> Optional[str]:
             data={"clickCount": {"increment": 1}}
         )
         return url_record.originalUrl
-    
+
     return None

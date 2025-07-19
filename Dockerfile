@@ -11,6 +11,12 @@ COPY pyproject.toml uv.lock ./
 # Install dependencies
 RUN uv sync --frozen --no-dev
 
+# Copy Prisma schema
+COPY schema.prisma ./
+
+# Generate Prisma Client
+RUN uv run prisma generate
+
 # Copy application code
 COPY app/ ./app/
 
