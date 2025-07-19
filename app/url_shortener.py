@@ -1,16 +1,12 @@
 import random
-import string
 import re
 import asyncio
-import uuid
-from typing import Optional
+from typing import Optional, Dict, Any
 from urllib.parse import urlparse
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from prisma import Prisma
+from prisma.models import User, Url, UserUrl
 import aiohttp
 from bs4 import BeautifulSoup
-from .models import Url
 
 # URL-safe characters for short code generation
 URL_SAFE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
@@ -75,7 +71,29 @@ async def fetch_page_title(url: str) -> str:
         print(f"Error fetching title for {url}: {e}")
         return "無法獲取標題"
 
-async def create_short_url(db: AsyncSession, original_url: str) -> dict:
+async def get_or_create_linebot_user(db: Prisma) -> User:
+    """Get or create a dedicated LINE Bot user for URL attribution"""
+    linebot_email = "linebot@s8l.xyz"
+    
+    # Try to find existing LINE Bot user
+    user = await db.user.find_unique(where={"email": linebot_email})
+    
+    if user:
+        return user
+    
+    # Create LINE Bot user if not exists
+    user = await db.user.create(
+        data={
+            "email": linebot_email,
+            "password": "linebot_system_user",  # System user, password not used
+            "name": "LINE Bot System",
+            "emailVerified": True
+        }
+    )
+    
+    return user
+
+async def create_short_url(db: Prisma, original_url: str) -> Dict[str, Any]:
     """Create a short URL, handling duplicates and collisions"""
     
     # Validate URL
@@ -89,30 +107,49 @@ async def create_short_url(db: AsyncSession, original_url: str) -> dict:
     except Exception:
         pass
     
+    # Get or create LINE Bot user
+    linebot_user = await get_or_create_linebot_user(db)
+    
     # Check if URL already exists
-    result = await db.execute(
-        select(Url).where(Url.original_url == validated_url)
-    )
-    existing_url = result.scalar_one_or_none()
+    existing_url = await db.url.find_unique(where={"originalUrl": validated_url})
     
     if existing_url:
+        # Check if this user already has this URL
+        existing_user_url = await db.userurl.find_first(
+            where={
+                "userId": linebot_user.id,
+                "urlId": existing_url.id,
+                "customDomainId": None  # Only for basic short URLs
+            }
+        )
+        
+        # Create UserUrl association if not exists
+        if not existing_user_url:
+            await db.userurl.create(
+                data={
+                    "userId": linebot_user.id,
+                    "urlId": existing_url.id
+                }
+            )
+        
         return {
-            "shortCode": existing_url.short_code,
-            "originalUrl": existing_url.original_url,
+            "shortCode": existing_url.shortCode,
+            "originalUrl": existing_url.originalUrl,
             "title": existing_url.title,
-            "shortUrl": f"https://s8l.xyz/{existing_url.short_code}"
+            "shortUrl": f"https://s8l.xyz/{existing_url.shortCode}"
         }
     
     # Generate unique short code with collision detection
     max_attempts = 10
+    short_code = None
+    
     for attempt in range(max_attempts):
-        short_code = generate_short_code()
+        potential_code = generate_short_code()
         
         # Check if short code already exists
-        result = await db.execute(
-            select(Url).where(Url.short_code == short_code)
-        )
-        if result.scalar_one_or_none() is None:
+        existing = await db.url.find_unique(where={"shortCode": potential_code})
+        if not existing:
+            short_code = potential_code
             break
         
         if attempt == max_attempts - 1:
@@ -122,39 +159,39 @@ async def create_short_url(db: AsyncSession, original_url: str) -> dict:
     title = await fetch_page_title(validated_url)
     
     # Create new URL record
-    new_url = Url(
-        id=str(uuid.uuid4()),
-        original_url=validated_url,
-        short_code=short_code,
-        title=title
+    new_url = await db.url.create(
+        data={
+            "originalUrl": validated_url,
+            "shortCode": short_code,
+            "title": title
+        }
     )
     
-    try:
-        db.add(new_url)
-        await db.commit()
-        await db.refresh(new_url)
-        
-        return {
-            "shortCode": new_url.short_code,
-            "originalUrl": new_url.original_url,
-            "title": new_url.title,
-            "shortUrl": f"https://s8l.xyz/{new_url.short_code}"
+    # Create UserUrl association
+    await db.userurl.create(
+        data={
+            "userId": linebot_user.id,
+            "urlId": new_url.id
         }
-    except IntegrityError:
-        await db.rollback()
-        raise ValueError("短網址生成失敗，請重試")
-
-async def get_original_url(db: AsyncSession, short_code: str) -> Optional[str]:
-    """Get original URL by short code and increment click count"""
-    result = await db.execute(
-        select(Url).where(Url.short_code == short_code)
     )
-    url_record = result.scalar_one_or_none()
+    
+    return {
+        "shortCode": new_url.shortCode,
+        "originalUrl": new_url.originalUrl,
+        "title": new_url.title,
+        "shortUrl": f"https://s8l.xyz/{new_url.shortCode}"
+    }
+
+async def get_original_url(db: Prisma, short_code: str) -> Optional[str]:
+    """Get original URL by short code and increment click count"""
+    url_record = await db.url.find_unique(where={"shortCode": short_code})
     
     if url_record:
         # Increment click count
-        url_record.click_count += 1
-        await db.commit()
-        return url_record.original_url
+        await db.url.update(
+            where={"id": url_record.id},
+            data={"clickCount": {"increment": 1}}
+        )
+        return url_record.originalUrl
     
     return None

@@ -7,7 +7,7 @@ from linebot.v3.messaging import (
 )
 from dotenv import load_dotenv
 
-from .database import AsyncSessionLocal
+from .database import get_prisma_client
 from .url_shortener import create_short_url
 
 load_dotenv()
@@ -16,7 +16,10 @@ load_dotenv()
 CHANNEL_TOKEN = os.getenv("CHANNEL_TOKEN")
 
 print(f"[DEBUG] CHANNEL_TOKEN length: {len(CHANNEL_TOKEN) if CHANNEL_TOKEN else 'None'}")
-print(f"[DEBUG] CHANNEL_TOKEN preview: {CHANNEL_TOKEN[:20]}..." if CHANNEL_TOKEN else "No CHANNEL_TOKEN")
+print(
+    f"[DEBUG] CHANNEL_TOKEN preview: {CHANNEL_TOKEN[:20]}..."
+    if CHANNEL_TOKEN else "No CHANNEL_TOKEN"
+)
 
 if not CHANNEL_TOKEN:
     raise ValueError("Missing required environment variables: CHANNEL_TOKEN")
@@ -43,9 +46,9 @@ async def process_message_sync(reply_token: str, message_text: str):
 
             # Create short URL using internal logic
             print("[MESSAGE HANDLER] 開始生成短網址...")
-            async with AsyncSessionLocal() as db:
-                result = await create_short_url(db, str(validated_url))
-                print(f"[MESSAGE HANDLER] 短網址生成結果: {result}")
+            db = await get_prisma_client()
+            result = await create_short_url(db, str(validated_url))
+            print(f"[MESSAGE HANDLER] 短網址生成結果: {result}")
 
             short_url = result.get("shortUrl")
             if short_url:
@@ -63,16 +66,39 @@ async def process_message_sync(reply_token: str, message_text: str):
             help_commands = ["help", "幫助", "說明", "指令"]
 
             if message_text.lower() in greetings:
-                reply_message = TextMessage(text="你好！歡迎使用短網址服務 📎\n\n直接傳送網址給我，我會幫您生成短網址！\n\n範例：\nhttps://www.google.com")
+                reply_message = TextMessage(
+                    text=(
+                        "你好！歡迎使用短網址服務 📎\n\n"
+                        "直接傳送網址給我，我會幫您生成短網址！\n\n"
+                        "範例：\nhttps://www.google.com"
+                    )
+                )
             elif message_text.lower() in help_commands:
-                reply_message = TextMessage(text="📎 短網址服務使用說明\n\n直接傳送完整網址給我即可：\n• 支援 http:// 或 https:// 開頭\n• 例如：https://www.example.com\n\n我會立即為您生成短網址！")
+                reply_message = TextMessage(
+                    text=(
+                        "📎 短網址服務使用說明\n\n"
+                        "直接傳送完整網址給我即可：\n"
+                        "• 支援 http:// 或 https:// 開頭\n"
+                        "• 例如：https://www.example.com\n\n"
+                        "我會立即為您生成短網址！"
+                    )
+                )
             else:
-                reply_message = TextMessage(text="請提供有效的網址格式 (http:// 或 https://)\n\n範例：https://www.google.com")
+                reply_message = TextMessage(
+                    text=(
+                        "請提供有效的網址格式 (http:// 或 https://)\n\n"
+                        "範例：https://www.google.com"
+                    )
+                )
 
         except ValueError as e:
             print(f"[MESSAGE HANDLER] 值錯誤: {e}")
             reply_message = TextMessage(text=str(e))
 
+        except (ConnectionError, TimeoutError) as e:
+            print(f"[MESSAGE HANDLER] 網路連接錯誤: {e}")
+            print(f"[MESSAGE HANDLER] 錯誤詳情: {traceback.format_exc()}")
+            reply_message = TextMessage(text="網路連接錯誤，請稍後再試")
         except Exception as e:
             print(f"[MESSAGE HANDLER] 生成短網址時發生錯誤: {e}")
             print(f"[MESSAGE HANDLER] 錯誤詳情: {traceback.format_exc()}")
@@ -116,7 +142,9 @@ async def process_message_sync(reply_token: str, message_text: str):
                 messages=[error_message]
             )
             line_bot_api.reply_message(reply_request)
+        except (ApiException, ConnectionError) as send_error:
+            print(f"[MESSAGE HANDLER] 發送錯誤訊息失敗: {send_error}")
         except Exception as send_error:
-            print(f"[MESSAGE HANDLER] 發送錯誤訊息也失敗: {send_error}")
+            print(f"[MESSAGE HANDLER] 發送錯誤訊息時發生未知錯誤: {send_error}")
 
         raise

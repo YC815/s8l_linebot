@@ -9,12 +9,12 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from linebot.v3 import WebhookHandler
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 from linebot.v3.exceptions import InvalidSignatureError
-from sqlalchemy.ext.asyncio import AsyncSession
+from prisma import Prisma
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
 from .message_handler import process_message_sync
-from .database import get_db, init_db, AsyncSessionLocal
+from .database import get_db, get_prisma_client, disconnect_prisma
 from .url_shortener import create_short_url, get_original_url
 
 load_dotenv()
@@ -31,10 +31,14 @@ class ShortenResponse(BaseModel):
     title: str
     shortUrl: str
 
-# Initialize database on startup
+# Initialize Prisma client on startup
 @app.on_event("startup")
 async def startup():
-    await init_db()
+    await get_prisma_client()
+
+@app.on_event("shutdown")
+async def shutdown():
+    await disconnect_prisma()
 
 CHANNEL_SECRET = os.getenv("CHANNEL_SECRET")
 CHANNEL_TOKEN = os.getenv("CHANNEL_TOKEN")
@@ -129,9 +133,8 @@ async def home():
     
     # Check database connection
     try:
-        async with AsyncSessionLocal() as db:
-            from sqlalchemy import text
-            await db.execute(text("SELECT 1"))
+        db = await get_prisma_client()
+        await db.user.count()  # Simple query to test connection
         db_status = "✅ 已連接"
     except Exception as e:
         db_status = f"❌ 連接失敗: {str(e)}"
@@ -228,7 +231,7 @@ async def health_check():
     return {"status": "healthy"}
 
 @app.post("/api/shorten", response_model=ShortenResponse)
-async def shorten_url(request: ShortenRequest, db: AsyncSession = Depends(get_db)):
+async def shorten_url(request: ShortenRequest, db: Prisma = Depends(get_db)):
     """Create a short URL"""
     try:
         result = await create_short_url(db, request.url)
@@ -240,7 +243,7 @@ async def shorten_url(request: ShortenRequest, db: AsyncSession = Depends(get_db
         raise HTTPException(status_code=500, detail="伺服器錯誤，請稍後重試")
 
 @app.get("/{short_code}")
-async def redirect_url(short_code: str, db: AsyncSession = Depends(get_db)):
+async def redirect_url(short_code: str, db: Prisma = Depends(get_db)):
     """Redirect to original URL"""
     original_url = await get_original_url(db, short_code)
     if original_url:
