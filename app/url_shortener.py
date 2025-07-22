@@ -100,12 +100,30 @@ async def create_short_url(db: Prisma, original_url: str) -> Dict[str, Any]:
     # Validate URL
     validated_url = validate_url(original_url)
     
-    # Check for recursive shortening (prevent our own domain)
+    # Check for recursive shortening (prevent our own domain and short URL pattern)
     try:
         parsed = urlparse(validated_url)
-        if parsed.hostname in ['s8l.xyz', 'www.s8l.xyz', 's8l-linebot.zeabur.app', 'localhost', '127.0.0.1']:
+        
+        # Block service backend domains
+        if parsed.hostname in ['s8l-linebot.zeabur.app', 'localhost', '127.0.0.1']:
             raise ValueError("不能縮短本服務的網址")
+        
+        # Block s8l.xyz short URL pattern - detect existing short URLs
+        if parsed.hostname in ['s8l.xyz', 'www.s8l.xyz']:
+            # Check if it's a short URL pattern: https://s8l.xyz/xxxxxx (6-10 char code)
+            path_parts = [p for p in parsed.path.split('/') if p]  # Remove empty parts
+            if (len(path_parts) == 1 and  # Only one path segment
+                4 <= len(path_parts[0]) <= 8):  # Short code length range (more precise)
+                raise ValueError("不能縮短已經是短網址的連結")
+            else:
+                # Allow other s8l.xyz URLs that aren't short URLs (like pages, etc.)
+                pass
+            
+    except ValueError:
+        # Re-raise ValueError (our custom error messages)
+        raise
     except Exception:
+        # Ignore other parsing errors
         pass
     
     # Get or create LINE Bot user
