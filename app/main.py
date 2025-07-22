@@ -5,7 +5,7 @@ import base64
 from typing import List
 
 from fastapi import FastAPI, Request, HTTPException, Depends
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 from linebot.v3 import WebhookHandler
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 from linebot.v3.exceptions import InvalidSignatureError
@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 from .message_handler import process_message_sync
 from .database import get_db, get_prisma_client, disconnect_prisma
 from .url_shortener import create_short_url, get_original_url
+from .qr_generator import generate_qr_code
 
 load_dotenv()
 
@@ -241,6 +242,29 @@ async def shorten_url(request: ShortenRequest, db: Prisma = Depends(get_db)):
     except Exception as e:
         print(f"Error in shorten API: {e}")
         raise HTTPException(status_code=500, detail="伺服器錯誤，請稍後重試")
+
+@app.get("/qr/{short_code}")
+async def get_qr_code(short_code: str, size: str = "medium", db: Prisma = Depends(get_db)):
+    """Generate QR code for short URL"""
+    # Verify short code exists
+    from .url_shortener import get_original_url
+    original_url = await get_original_url(db, short_code)
+    if not original_url:
+        raise HTTPException(status_code=404, detail="短網址不存在")
+    
+    # Generate QR code for the short URL
+    short_url = f"https://s8l.xyz/{short_code}"
+    
+    try:
+        qr_image = generate_qr_code(short_url, size)
+        return StreamingResponse(
+            qr_image, 
+            media_type="image/png",
+            headers={"Cache-Control": "public, max-age=3600"}  # Cache for 1 hour
+        )
+    except Exception as e:
+        print(f"Error generating QR code: {e}")
+        raise HTTPException(status_code=500, detail="QR碼生成失敗")
 
 @app.get("/{short_code}")
 async def redirect_url(short_code: str, db: Prisma = Depends(get_db)):
