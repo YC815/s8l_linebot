@@ -55,8 +55,7 @@ async def process_message_sync(reply_token: str, message_text: str):
             
             if short_url and short_code:
                 # Create QR code image URL - using the service's own domain
-                # In production, replace with your actual domain
-                base_url = os.getenv("BASE_URL", "https://s8l.xyz")  # Replace with your domain
+                base_url = os.getenv("BASE_URL", "https://s8l-linebot.zeabur.app")
                 qr_image_url = f"{base_url}/qr/{short_code}"
                 
                 # Create text message with short URL info

@@ -253,7 +253,7 @@ async def get_qr_code(short_code: str, size: str = "medium", db: Prisma = Depend
         raise HTTPException(status_code=404, detail="短網址不存在")
     
     # Generate QR code for the short URL
-    short_url = f"https://s8l.xyz/{short_code}"
+    short_url = f"https://s8l-linebot.zeabur.app/{short_code}"
     
     try:
         qr_image_bytes = generate_qr_code(short_url, size)
@@ -262,8 +262,10 @@ async def get_qr_code(short_code: str, size: str = "medium", db: Prisma = Depend
             content=qr_image_bytes,
             media_type="image/png",
             headers={
-                "Cache-Control": "public, max-age=3600",  # Cache for 1 hour
+                "Cache-Control": "public, max-age=3600",
                 "Content-Length": str(len(qr_image_bytes)),
+                "Content-Type": "image/png",  # 明確指定 Content-Type
+                "Accept-Ranges": "bytes",     # 支援範圍請求
                 "Content-Disposition": f"inline; filename=qr_{short_code}.png"
             }
         )
@@ -276,7 +278,7 @@ async def get_qr_code(short_code: str, size: str = "medium", db: Prisma = Depend
 @app.get("/debug/qr-test")
 async def debug_qr_test(size: str = "medium"):
     """Debug endpoint to test QR code generation"""
-    test_url = "https://s8l.xyz/test123"
+    test_url = "https://s8l-linebot.zeabur.app/test123"
     
     try:
         qr_image_bytes = generate_qr_code(test_url, size)
@@ -287,6 +289,8 @@ async def debug_qr_test(size: str = "medium"):
             headers={
                 "Cache-Control": "no-cache",
                 "Content-Length": str(len(qr_image_bytes)),
+                "Content-Type": "image/png",  # 明確指定 Content-Type
+                "Accept-Ranges": "bytes",     # 支援範圍請求
                 "Content-Disposition": f"inline; filename=qr_test_{size}.png"
             }
         )

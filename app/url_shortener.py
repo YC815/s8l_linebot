@@ -103,7 +103,7 @@ async def create_short_url(db: Prisma, original_url: str) -> Dict[str, Any]:
     # Check for recursive shortening (prevent our own domain)
     try:
         parsed = urlparse(validated_url)
-        if parsed.hostname in ['s8l.xyz', 'www.s8l.xyz', 'localhost', '127.0.0.1']:
+        if parsed.hostname in ['s8l.xyz', 'www.s8l.xyz', 's8l-linebot.zeabur.app', 'localhost', '127.0.0.1']:
             raise ValueError("不能縮短本服務的網址")
     except Exception:
         pass
@@ -137,7 +137,7 @@ async def create_short_url(db: Prisma, original_url: str) -> Dict[str, Any]:
             "shortCode": existing_url.shortCode,
             "originalUrl": existing_url.originalUrl,
             "title": existing_url.title,
-            "shortUrl": f"https://s8l.xyz/{existing_url.shortCode}"
+            "shortUrl": f"https://s8l-linebot.zeabur.app/{existing_url.shortCode}"
         }
     
     # Generate unique short code with collision detection
@@ -180,7 +180,7 @@ async def create_short_url(db: Prisma, original_url: str) -> Dict[str, Any]:
         "shortCode": new_url.shortCode,
         "originalUrl": new_url.originalUrl,
         "title": new_url.title,
-        "shortUrl": f"https://s8l.xyz/{new_url.shortCode}"
+        "shortUrl": f"https://s8l-linebot.zeabur.app/{new_url.shortCode}"
     }
 
 async def get_original_url(db: Prisma, short_code: str) -> Optional[str]:
