@@ -5,7 +5,7 @@ import base64
 from typing import List
 
 from fastapi import FastAPI, Request, HTTPException, Depends
-from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from linebot.v3 import WebhookHandler
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 from linebot.v3.exceptions import InvalidSignatureError
@@ -256,15 +256,48 @@ async def get_qr_code(short_code: str, size: str = "medium", db: Prisma = Depend
     short_url = f"https://s8l.xyz/{short_code}"
     
     try:
-        qr_image = generate_qr_code(short_url, size)
-        return StreamingResponse(
-            qr_image, 
+        qr_image_bytes = generate_qr_code(short_url, size)
+        
+        return Response(
+            content=qr_image_bytes,
             media_type="image/png",
-            headers={"Cache-Control": "public, max-age=3600"}  # Cache for 1 hour
+            headers={
+                "Cache-Control": "public, max-age=3600",  # Cache for 1 hour
+                "Content-Length": str(len(qr_image_bytes)),
+                "Content-Disposition": f"inline; filename=qr_{short_code}.png"
+            }
         )
     except Exception as e:
         print(f"Error generating QR code: {e}")
+        import traceback
+        print(f"QR code error traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail="QR碼生成失敗")
+
+@app.get("/debug/qr-test")
+async def debug_qr_test(size: str = "medium"):
+    """Debug endpoint to test QR code generation"""
+    test_url = "https://s8l.xyz/test123"
+    
+    try:
+        qr_image_bytes = generate_qr_code(test_url, size)
+        
+        return Response(
+            content=qr_image_bytes,
+            media_type="image/png",
+            headers={
+                "Cache-Control": "no-cache",
+                "Content-Length": str(len(qr_image_bytes)),
+                "Content-Disposition": f"inline; filename=qr_test_{size}.png"
+            }
+        )
+    except Exception as e:
+        print(f"Debug QR test error: {e}")
+        import traceback
+        print(f"Debug QR test traceback: {traceback.format_exc()}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e), "test_url": test_url, "size": size}
+        )
 
 @app.get("/{short_code}")
 async def redirect_url(short_code: str, db: Prisma = Depends(get_db)):

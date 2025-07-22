@@ -1,27 +1,26 @@
 """QR Code generator module for URL shortening service"""
 import io
-from typing import BinaryIO
 import qrcode
 from qrcode.image.pil import PilImage
 from PIL import Image
 
 
-def generate_qr_code(data: str, size: str = "medium") -> BinaryIO:
+def generate_qr_code(data: str, size: str = "medium") -> bytes:
     """
-    Generate QR code for given data and return as binary stream
+    Generate QR code for given data and return as PNG bytes
     
     Args:
         data: The data to encode in QR code (URL)
         size: Size of QR code ("small", "medium", "large")
     
     Returns:
-        BinaryIO: PNG image data as binary stream
+        bytes: PNG image data as bytes
     """
-    # Define size configurations
+    # Define size configurations - optimized for LINE Message API
     size_configs = {
-        "small": {"version": 1, "box_size": 6, "border": 2},
-        "medium": {"version": 1, "box_size": 10, "border": 4},
-        "large": {"version": 1, "box_size": 15, "border": 6}
+        "small": {"version": 1, "box_size": 4, "border": 2},      # ~120x120px
+        "medium": {"version": 1, "box_size": 6, "border": 3},     # ~200x200px  
+        "large": {"version": 1, "box_size": 8, "border": 4}       # ~280x280px
     }
     
     config = size_configs.get(size, size_configs["medium"])
@@ -43,10 +42,10 @@ def generate_qr_code(data: str, size: str = "medium") -> BinaryIO:
     
     # Convert to PNG binary data
     img_buffer = io.BytesIO()
-    qr_image.save(img_buffer, format="PNG", optimize=True)
-    img_buffer.seek(0)
+    qr_image.save(img_buffer, format="PNG", optimize=True, quality=95)
     
-    return img_buffer
+    # Return the bytes directly instead of BytesIO object
+    return img_buffer.getvalue()
 
 
 def get_qr_code_dimensions(size: str = "medium") -> tuple[int, int]:
@@ -60,9 +59,9 @@ def get_qr_code_dimensions(size: str = "medium") -> tuple[int, int]:
         tuple: (width, height) in pixels
     """
     size_configs = {
-        "small": {"version": 1, "box_size": 6, "border": 2},
-        "medium": {"version": 1, "box_size": 10, "border": 4},
-        "large": {"version": 1, "box_size": 15, "border": 6}
+        "small": {"version": 1, "box_size": 4, "border": 2},      # ~120x120px
+        "medium": {"version": 1, "box_size": 6, "border": 3},     # ~200x200px  
+        "large": {"version": 1, "box_size": 8, "border": 4}       # ~280x280px
     }
     
     config = size_configs.get(size, size_configs["medium"])
