@@ -252,8 +252,8 @@ async def get_qr_code(short_code: str, size: str = "medium", db: Prisma = Depend
     if not original_url:
         raise HTTPException(status_code=404, detail="短網址不存在")
     
-    # Generate QR code for the short URL
-    short_url = f"https://s8l-linebot.zeabur.app/{short_code}"
+    # Generate QR code for the short URL  
+    short_url = f"https://s8l.xyz/{short_code}"
     
     try:
         qr_image_bytes = generate_qr_code(short_url, size)

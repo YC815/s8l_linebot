@@ -58,10 +58,8 @@ async def process_message_sync(reply_token: str, message_text: str):
                 base_url = os.getenv("BASE_URL", "https://s8l-linebot.zeabur.app")
                 qr_image_url = f"{base_url}/qr/{short_code}"
                 
-                # Create text message with short URL info
-                text_message = TextMessage(
-                    text=f"🔗 短網址已生成：\n{short_url}\n\n📱 掃描下方 QR Code 也可直接開啟連結"
-                )
+                # Create text message with short URL only for easy copying
+                text_message = TextMessage(text=short_url)
                 
                 # Create image message with QR code
                 image_message = ImageMessage(
